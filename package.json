@@ -1,5 +1,5 @@
 {
-  "name": "odoo-jsonrpc",
+  "name": "@fernandoslim/odoo-jsonrpc",
   "version": "1.0.0",
   "description": "A lightweight Odoo JSON-RPC client with zero dependencies.",
   "main": "dist/OdooJSONRpc.js",

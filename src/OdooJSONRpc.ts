@@ -52,6 +52,9 @@ export default class OdooJSONRpc {
     return result;
   }
   async connect() {
+    if (this.session_id) {
+      return;
+    }
     const endpoint = `${this.url}/web/session/authenticate`;
     const data = {
       jsonrpc: '2.0',
