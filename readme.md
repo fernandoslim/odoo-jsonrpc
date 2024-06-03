@@ -217,7 +217,7 @@ Searches for matching records and returns record data.
 Provide an array of field names if you only want certain fields returned.
 
 ```js
-const records = await odoo.searchRead(`res.partner`, { country_id: 'United States' }, ['name', 'city'], {
+const records = await odoo.searchRead(`res.partner`, [['country_id', '=', 'United States']], ['name', 'city'], {
   limit: 5,
   offset: 10,
   order: 'name, desc',
@@ -226,7 +226,7 @@ const records = await odoo.searchRead(`res.partner`, { country_id: 'United State
 console.log(records); // [ { id: 5, name: 'Kool Keith', city: 'Los Angeles' }, ... ]
 
 // Empty domain or other args can be used
-const records = await odoo.searchRead(`res.partner`, {}, ['name', 'city'], {
+const records = await odoo.searchRead(`res.partner`, [], ['name', 'city'], {
   limit: 10,
   offset: 20,
 });
