@@ -20,7 +20,7 @@
     "client"
   ],
   "author": "Fernando Slim <xferchox@gmail.com>",
-  "license": "MIT",
+  "license": "ISC",
   "bugs": {
     "url": "https://github.com/fernandoslim/odoo-jsonrpc/issues"
   },
