@@ -4,10 +4,6 @@ A lightweight Odoo JSON-RPC client with zero dependencies.
 
 Based on [OdooAwait](https://github.com/vettloffah/odoo-await) which uses XML-RPC. Special thanks to [@vettloffah](https://github.com/vettloffah).
 
-## Performance
-
-JSON-RPC is approximately 20% faster than XML-RPC.
-
 ## Node version
 
 Node 18+
