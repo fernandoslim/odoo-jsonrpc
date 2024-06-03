@@ -4,6 +4,28 @@ A lightweight Odoo JSON-RPC client with zero dependencies.
 
 Based on [OdooAwait](https://github.com/vettloffah/odoo-await) which uses XML-RPC. Special thanks to [@vettloffah](https://github.com/vettloffah).
 
+## Performance
+
+JSON-RPC is approximately 20% faster than XML-RPC and allow more request/s
+
+Synthetic Benchmark with [HonoJS](https://github.com/honojs)
+
+hey -n 2000 -c 80 -m GET -H "Content-Type: application/json" -H "Authorization: Bearer honoiscool" http://localhost:3000/v1/contacts/3
+
+JSON-RPC
+Total: 3.2409 secs
+Slowest: 0.4474 secs
+Fastest: 0.0852 secs
+Average: 0.1220 secs
+Requests/sec: 617.1133
+
+XML-RPC
+Total: 5.6660 secs
+Slowest: 0.7938 secs
+Fastest: 0.0978 secs
+Average: 0.2135 secs
+Requests/sec: 352.9848
+
 ## Node version
 
 Node 18+
