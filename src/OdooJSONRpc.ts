@@ -112,7 +112,7 @@ export default class OdooJSONRpc {
   async getFields(model: string): Promise<any> {
     return this.call_kw(model, 'fields_get', []);
   }
-  async action(model: string, action: string, ids: number[]) {
+  async action(model: string, action: string, ids: number[]): Promise<boolean> {
     return this.call_kw(model, action, ids);
   }
   async createExternalId(model: string, recordId: number, externalId: string, moduleName?: string): Promise<number> {
