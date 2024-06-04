@@ -46,7 +46,7 @@ npm install odoo-jsonrpc
 ## Usage
 
 ```js
-import OdooJSONRpc from 'odoo-jsonrpc';
+import OdooJSONRpc from '@fernandoslim/odoo-jsonrpc';
 
 const odoo = new OdooJSONRpc({
   baseUrl: process.env.ODOO_BASE_URL!,
