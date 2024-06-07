@@ -48,7 +48,14 @@ export default class OdooJSONRpc {
     if (!response.ok) {
       throw new Error(response.statusText);
     }
-    const { result } = await response.json();
+    const body = await response.json();
+    const { result, error } = body;
+    if (error) {
+      throw new Error(body.error.data.message);
+    }
+    if (!result && method === 'update') {
+      return true;
+    }
     return result;
   }
   async connect() {
