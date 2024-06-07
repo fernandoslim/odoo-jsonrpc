@@ -97,7 +97,7 @@ export default class OdooJSONRpc {
     return this.call_kw(model, 'read', [id, fields]);
   }
   async update(model: string, id: number, values: any): Promise<boolean> {
-    return this.call_kw(model, 'write', [[id], values]);
+    return this.call_kw(model, 'update', [[id], values]);
   }
   async delete(model: string, id: number): Promise<boolean> {
     return this.call_kw(model, 'unlink', [[id]]);
