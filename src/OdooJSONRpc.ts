@@ -53,9 +53,6 @@ export default class OdooJSONRpc {
     if (error) {
       throw new Error(body.error.data.message);
     }
-    if (!result && method === 'update') {
-      return true;
-    }
     return result;
   }
   async connect() {
@@ -104,7 +101,7 @@ export default class OdooJSONRpc {
     return this.call_kw(model, 'read', [id, fields]);
   }
   async update(model: string, id: number, values: any): Promise<boolean> {
-    return this.call_kw(model, 'update', [[id], values]);
+    return this.call_kw(model, 'write', [[id], values]);
   }
   async delete(model: string, id: number): Promise<boolean> {
     return this.call_kw(model, 'unlink', [[id]]);
