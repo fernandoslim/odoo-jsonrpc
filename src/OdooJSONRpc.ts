@@ -6,12 +6,82 @@ interface OdooSearchReadOptions {
   order?: string;
   context?: any;
 }
+export interface OdooAuthenticateResponse {
+  uid: number;
+  is_system: boolean;
+  is_admin: boolean;
+  is_internal_user: boolean;
+  user_context: UserContext;
+  db: string;
+  user_settings: UserSettings;
+  server_version: string;
+  server_version_info: [number, number, number, string, number, string];
+  support_url: string;
+  name: string;
+  username: string;
+  partner_display_name: string;
+  partner_id: number;
+  'web.base.url': string;
+  active_ids_limit: number;
+  profile_session: any;
+  profile_collectors: any;
+  profile_params: any;
+  max_file_upload_size: number;
+  home_action_id: boolean;
+  cache_hashes: any;
+  currencies: any;
+  bundle_params: any;
+  user_companies: any;
+  show_effect: boolean;
+  display_switch_company_menu: boolean;
+  user_id: number[];
+  max_time_between_keys_in_ms: number;
+  web_tours: any[];
+  tour_disable: boolean;
+  notification_type: string;
+  warning: string;
+  expiration_date: string;
+  expiration_reason: string;
+  map_box_token: boolean;
+  odoobot_initialized: boolean;
+  iap_company_enrich: boolean;
+  ocn_token_key: boolean;
+  fcm_project_id: boolean;
+  inbox_action: number;
+  is_quick_edit_mode_enabled: string;
+  dbuuid: string;
+  multi_lang: boolean;
+}
+
+export interface UserContext {
+  lang: string;
+  tz: string;
+  uid: number;
+}
+
+export interface UserSettings {
+  id: number;
+  user_id: UserId;
+  is_discuss_sidebar_category_channel_open: boolean;
+  is_discuss_sidebar_category_chat_open: boolean;
+  push_to_talk_key: boolean;
+  use_push_to_talk: boolean;
+  voice_active_duration: number;
+  volume_settings_ids: [string, any[]][];
+  homemenu_config: boolean;
+}
+
+export interface UserId {
+  id: number;
+}
+
 export default class OdooJSONRpc {
   private session_id: string = '';
   private url: string;
   private db: string;
   private username: string;
   private password: string;
+  private auth_response: any;
 
   constructor({ baseUrl, port, db, username, password }: { baseUrl: string; port: number; db: string; username: string; password: string }) {
     this.url = `${baseUrl}:${port}`;
@@ -19,7 +89,9 @@ export default class OdooJSONRpc {
     this.username = username;
     this.password = password;
   }
-
+  get authResponse(): OdooAuthenticateResponse {
+    return this.auth_response;
+  }
   async call_kw(model: string, method: string, args: any[], kwargs: any = {}) {
     if (!this.session_id) {
       throw new Error('session_id not found. Please connect first.');
@@ -55,9 +127,9 @@ export default class OdooJSONRpc {
     }
     return result;
   }
-  async connect() {
+  async connect(): Promise<OdooAuthenticateResponse> {
     if (this.session_id) {
-      return;
+      return this.authResponse;
     }
     const endpoint = `${this.url}/web/session/authenticate`;
     const data = {
@@ -81,6 +153,11 @@ export default class OdooJSONRpc {
     if (!response.ok) {
       throw new Error(response.statusText);
     }
+    const body = await response.json();
+    const { result, error } = body;
+    if (error) {
+      throw new Error(body.error.data.message);
+    }
     const cookies = response.headers.get('set-cookie');
     if (!cookies) {
       throw new Error('Cookie not found in response headers');
@@ -93,6 +170,8 @@ export default class OdooJSONRpc {
       .find((cookie) => cookie.includes('session_id'))!
       .split('=')[1];
     this.session_id = sessionId;
+    this.auth_response = result;
+    return result;
   }
   async create(model: string, values: any): Promise<number> {
     return this.call_kw(model, 'create', [values]);
