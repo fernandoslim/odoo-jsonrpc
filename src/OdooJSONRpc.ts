@@ -74,7 +74,15 @@ export interface UserSettings {
 export interface UserId {
   id: number;
 }
-
+export const Try = async <T>(fn: () => Promise<T>): Promise<[T, null] | [null, Error]> => {
+  try {
+    const result = await fn();
+    return [result, null];
+  } catch (e) {
+    const error = e as Error;
+    return [null, error];
+  }
+};
 export default class OdooJSONRpc {
   private session_id: string = '';
   private url: string;
@@ -112,18 +120,26 @@ export default class OdooJSONRpc {
       'Content-Type': 'application/json',
       'X-Openerp-Session-Id': this.session_id,
     };
-    const response = await fetch(endpoint, {
-      headers,
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    const [response, request_error] = await Try(() =>
+      fetch(endpoint, {
+        headers,
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+    );
+    if (request_error) {
+      throw request_error;
+    }
     if (!response.ok) {
       throw new Error(response.statusText);
     }
-    const body = await response.json();
+    const [body, body_parse_error] = await Try(() => response.json());
+    if (body_parse_error) {
+      throw body_parse_error;
+    }
     const { result, error } = body;
     if (error) {
-      throw new Error(body.error.data.message);
+      throw new Error(body?.error?.data?.message);
     }
     return result;
   }
@@ -142,25 +158,33 @@ export default class OdooJSONRpc {
       },
       id: new Date().getTime(),
     };
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Openerp-Session-Id': this.session_id,
-      },
-      body: JSON.stringify(data),
-    });
+    const [response, auth_error] = await Try(() =>
+      fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Openerp-Session-Id': this.session_id,
+        },
+        body: JSON.stringify(data),
+      })
+    );
+    if (auth_error) {
+      throw auth_error;
+    }
     if (!response.ok) {
       throw new Error(response.statusText);
     }
-    const body = await response.json();
-    const { result, error } = body;
-    if (error) {
-      throw new Error(body.error.data.message);
+    const [body, body_parse_error] = await Try(() => response.json());
+    if (body_parse_error) {
+      throw body_parse_error;
+    }
+    const { result, odoo_error } = body;
+    if (odoo_error) {
+      throw new Error(body?.error?.data?.message);
     }
     const cookies = response.headers.get('set-cookie');
     if (!cookies) {
-      throw new Error('Cookie not found in response headers');
+      throw new Error('Cookie not found in response headers, please check your credentials');
     }
     if (!cookies.includes('session_id')) {
       throw new Error('session_id not found in cookies');
