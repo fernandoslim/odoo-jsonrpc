@@ -43,6 +43,46 @@ Designed to work with Cloudflare Workers
 npm install odoo-jsonrpc
 ```
 
+## Helpers
+
+### Try
+
+Introduced the Try helper, which encapsulates a try/catch block in a smart way. This allows you to make requests and handle responses and errors more reliably, similar to Go.
+
+```js
+//Getting a contact by id
+export const getContactById = async (contact_id: number) => {
+  const [contacts, error] = await Try(() => odoo.read('res.partner', contact_id, ['name', 'email', 'mobile']));
+  if (error) {
+    throw error;
+  }
+  if (contacts.length === 0) {
+    throw new Error('Contact Not Found.');
+  }
+  const [contact] = contacts;
+  return contact;
+};
+```
+
+```js
+//Create and confirm a Sales Order
+export const createSalesOrder = async (salesorder_data: SalesOrder) => {
+  const { partner_id, order_line } = salesorder_data;
+  //Creating Sales Order
+  const [salesorder_id, creating_salesorder_error] = await Try(async () => odoo.create('sale.order', salesorder_data));
+  if (creating_salesorder_error) {
+    throw creating_salesorder_error;
+  }
+  //Confirming Sales Order
+  //If the Sales Order is confirmed, it will return a boolean. Since this value is not used, the underscore (_) is used as a placeholder.
+  const [_, confirming_salesorder_error] = await Try(() => odoo.action('sale.order', 'action_confirm', [salesorder_id]));
+  if (confirming_salesorder_error) {
+    throw confirming_salesorder_error;
+  }
+  return salesorder_id;
+};
+```
+
 ## Usage
 
 ```js
@@ -64,7 +104,7 @@ const partnerId = await odoo.create("res.partner", {
 });
 console.log(`Partner created with ID ${partnerId}`);
 
-// if connecting to a dev instance of odoo.sh, your config will looking something like:
+// If connecting to a dev instance of odoo.sh, your config will looking something like:
 const odoo = new OdooJSONRpc({
   baseUrl: 'https://some-database-name-5-29043948.dev.odoo.com/',
   port: 443,
@@ -157,7 +197,7 @@ In order to use any of these actions on a field, supply an object as the field v
 #### Examples
 
 ```js
-// create new realted records on the fly
+// Create new realted records on the fly
 await odoo.update('res.partner', 278, {
   category_id: {
     action: 'create',
@@ -165,7 +205,7 @@ await odoo.update('res.partner', 278, {
   },
 });
 
-// update a related record in the set
+// Update a related record in the set
 await odoo.update('res.partner', 278, {
   category_id: {
     action: 'update',
@@ -174,7 +214,7 @@ await odoo.update('res.partner', 278, {
   },
 });
 
-// add existing records to the set
+// Add existing records to the set
 await odoo.update('res.partner', 278, {
   category_id: {
     action: 'add',
@@ -182,7 +222,7 @@ await odoo.update('res.partner', 278, {
   },
 });
 
-// remove from the set but don't delete from database
+// Remove from the set but don't delete from database
 await odoo.update('res.partner', 278, {
   category_id: {
     action: 'remove',
@@ -190,7 +230,7 @@ await odoo.update('res.partner', 278, {
   },
 });
 
-// remove record and delete from database
+// Remove record and delete from database
 await odoo.update('res.partner', 278, {
   category_id: {
     action: 'delete',
@@ -198,14 +238,14 @@ await odoo.update('res.partner', 278, {
   },
 });
 
-// clear all records from set, but don't delete
+// Clear all records from set, but don't delete
 await odoo.update('res.partner', 278, {
   category_id: {
     action: 'clear',
   },
 });
 
-// replace records in set with other existing records
+// Replace records in set with other existing records
 await odoo.update('res.partner', 278, {
   category_id: {
     action: 'replace',
@@ -231,7 +271,7 @@ const recordIds = await odoo.search(`res.partner`, {
 });
 console.log(recordIds); // [14,26,33, ... ]
 
-// return all records of a certain model (omit domain)
+// Return all records of a certain model (omit domain)
 const records = await odoo.searchRead(`res.partner`);
 ```
 
@@ -265,16 +305,16 @@ You can also use the logical operators OR `"|"`, AND `"&"`, NOT `"!"`.
 Works in both the `search()` and `searchRead()` functions.
 
 ```js
-// single domain filter array
+// Single domain filter array
 const recordIds = await odoo.search('res.partner', ['name', '=like', 'john%']);
 
-// or a multiple domain filter array (array of arrays)
+// Or a multiple domain filter array (array of arrays)
 const recordIds = await odoo.search('res.partner', [
   ['name', '=like', 'john%'],
   ['sale_order_count', '>', 1],
 ]);
 
-// logical operator OR
+// Logical operator OR
 // email is "charlie@example.com" OR name includes "charlie"
 const records = await odoo.searchRead('res.partner', ['|', ['email', '=', 'charlie@example.com'], ['name', 'ilike', 'charlie']]);
 ```
