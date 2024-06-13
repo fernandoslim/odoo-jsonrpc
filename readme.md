@@ -67,7 +67,6 @@ export const getContactById = async (contact_id: number) => {
 ```js
 //Create and confirm a Sales Order
 export const createSalesOrder = async (salesorder_data: SalesOrder) => {
-  const { partner_id, order_line } = salesorder_data;
   //Creating Sales Order
   const [salesorder_id, creating_salesorder_error] = await Try(async () => odoo.create('sale.order', salesorder_data));
   if (creating_salesorder_error) {
