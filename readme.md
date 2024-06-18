@@ -50,7 +50,7 @@ npm install odoo-jsonrpc
 Introduced the Try helper, which encapsulates a try/catch block in a smart way. This allows you to make requests and handle responses and errors more reliably, similar to Go.
 
 ```js
-//Getting a contact by id
+// Getting a contact by id
 export const getContactById = async (contact_id: number) => {
   const [contacts, error] = await Try(() => odoo.read('res.partner', contact_id, ['name', 'email', 'mobile']));
   if (error) {
@@ -65,15 +65,15 @@ export const getContactById = async (contact_id: number) => {
 ```
 
 ```js
-//Create and confirm a Sales Order
+// Create and confirm a Sales Order
 export const createSalesOrder = async (salesorder_data: SalesOrder) => {
-  //Creating Sales Order
+  // Creating Sales Order
   const [salesorder_id, creating_salesorder_error] = await Try(() => odoo.create('sale.order', salesorder_data));
   if (creating_salesorder_error) {
     throw creating_salesorder_error;
   }
-  //Confirming Sales Order
-  //If the Sales Order is confirmed, it will return a boolean. Since this value is not used, the underscore (_) is used as a placeholder.
+  // Confirming Sales Order
+  // If the Sales Order is confirmed, it will return a boolean. Since this value is not used, the underscore (_) is used as a placeholder.
   const [_, confirming_salesorder_error] = await Try(() => odoo.action('sale.order', 'action_confirm', [salesorder_id]));
   if (confirming_salesorder_error) {
     throw confirming_salesorder_error;
@@ -87,6 +87,7 @@ export const createSalesOrder = async (salesorder_data: SalesOrder) => {
 ```js
 import OdooJSONRpc from '@fernandoslim/odoo-jsonrpc';
 
+// Log in with username and password
 const odoo = new OdooJSONRpc({
   baseUrl: process.env.ODOO_BASE_URL!,
   port: Number(process.env.ODOO_PORT!),
@@ -96,6 +97,19 @@ const odoo = new OdooJSONRpc({
 });
 
 await odoo.connect();
+```
+
+```js
+// Working with existing sessionId
+const odoo = new OdooJSONRpc({
+  baseUrl: process.env.ODOO_BASE_URL!,
+  port: Number(process.env.ODOO_PORT!),
+  db: process.env.ODOO_DB!,
+  sessionId: "odoo-is-cool"
+});
+
+// If you need OdooAuthenticateResponse
+const auth_response = await odoo.connect();
 
 const partnerId = await odoo.create("res.partner", {
   name: "Kool Keith",

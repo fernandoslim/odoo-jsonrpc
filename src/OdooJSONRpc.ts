@@ -74,6 +74,23 @@ export interface UserSettings {
 export interface UserId {
   id: number;
 }
+interface OdooConnectionBase {
+  baseUrl: string;
+  port: number;
+  db: string;
+}
+
+interface ConnectionWithSession extends OdooConnectionBase {
+  sessionId: string;
+}
+
+interface ConnectionWithCredentials extends OdooConnectionBase {
+  username: string;
+  password: string;
+}
+
+type OdooConnection = ConnectionWithSession | ConnectionWithCredentials;
+
 export const Try = async <T>(fn: () => Promise<T>): Promise<[T, null] | [null, Error]> => {
   try {
     const result = await fn();
@@ -86,16 +103,13 @@ export const Try = async <T>(fn: () => Promise<T>): Promise<[T, null] | [null, E
 export default class OdooJSONRpc {
   private session_id: string = '';
   private url: string;
-  private db: string;
-  private username: string;
-  private password: string;
   private auth_response: any;
 
-  constructor({ baseUrl, port, db, username, password }: { baseUrl: string; port: number; db: string; username: string; password: string }) {
-    this.url = `${baseUrl}:${port}`;
-    this.db = db;
-    this.username = username;
-    this.password = password;
+  constructor(private config: OdooConnection) {
+    this.url = `${this.config.baseUrl}:${this.config.port}`;
+    if ('sessionId' in this.config) {
+      this.session_id = this.config.sessionId;
+    }
   }
   get authResponse(): OdooAuthenticateResponse {
     return this.auth_response;
@@ -144,58 +158,91 @@ export default class OdooJSONRpc {
     return result;
   }
   async connect(): Promise<OdooAuthenticateResponse> {
-    if (this.session_id) {
-      return this.authResponse;
-    }
-    const endpoint = `${this.url}/web/session/authenticate`;
-    const data = {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        db: this.db,
-        login: this.username,
-        password: this.password,
-      },
-      id: new Date().getTime(),
-    };
-    const [response, auth_error] = await Try(() =>
-      fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Openerp-Session-Id': this.session_id,
+    if ('sessionId' in this.config) {
+      const endpoint = `${this.url}/web/session/get_session_info`;
+      const data = {
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {},
+        id: new Date().getTime(),
+      };
+      const [response, auth_error] = await Try(() =>
+        fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Openerp-Session-Id': this.session_id,
+          },
+          body: JSON.stringify(data),
+        })
+      );
+      if (auth_error) {
+        throw auth_error;
+      }
+      if (!response.ok) {
+        throw new Error(response.statusText);
+      }
+      const [body, body_parse_error] = await Try(() => response.json());
+      if (body_parse_error) {
+        throw body_parse_error;
+      }
+      const { result, odoo_error } = body;
+      if (odoo_error) {
+        throw new Error(body?.error?.data?.message);
+      }
+      this.auth_response = result;
+      return result;
+    } else {
+      const endpoint = `${this.url}/web/session/authenticate`;
+      const data = {
+        jsonrpc: '2.0',
+        method: 'call',
+        params: {
+          db: this.config.db,
+          login: this.config.username,
+          password: this.config.password,
         },
-        body: JSON.stringify(data),
-      })
-    );
-    if (auth_error) {
-      throw auth_error;
+        id: new Date().getTime(),
+      };
+      const [response, auth_error] = await Try(() =>
+        fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Openerp-Session-Id': this.session_id,
+          },
+          body: JSON.stringify(data),
+        })
+      );
+      if (auth_error) {
+        throw auth_error;
+      }
+      if (!response.ok) {
+        throw new Error(response.statusText);
+      }
+      const [body, body_parse_error] = await Try(() => response.json());
+      if (body_parse_error) {
+        throw body_parse_error;
+      }
+      const { result, odoo_error } = body;
+      if (odoo_error) {
+        throw new Error(body?.error?.data?.message);
+      }
+      const cookies = response.headers.get('set-cookie');
+      if (!cookies) {
+        throw new Error('Cookie not found in response headers, please check your credentials');
+      }
+      if (!cookies.includes('session_id')) {
+        throw new Error('session_id not found in cookies');
+      }
+      const sessionId = cookies
+        .split(';')
+        .find((cookie) => cookie.includes('session_id'))!
+        .split('=')[1];
+      this.session_id = sessionId;
+      this.auth_response = result;
+      return result;
     }
-    if (!response.ok) {
-      throw new Error(response.statusText);
-    }
-    const [body, body_parse_error] = await Try(() => response.json());
-    if (body_parse_error) {
-      throw body_parse_error;
-    }
-    const { result, odoo_error } = body;
-    if (odoo_error) {
-      throw new Error(body?.error?.data?.message);
-    }
-    const cookies = response.headers.get('set-cookie');
-    if (!cookies) {
-      throw new Error('Cookie not found in response headers, please check your credentials');
-    }
-    if (!cookies.includes('session_id')) {
-      throw new Error('session_id not found in cookies');
-    }
-    const sessionId = cookies
-      .split(';')
-      .find((cookie) => cookie.includes('session_id'))!
-      .split('=')[1];
-    this.session_id = sessionId;
-    this.auth_response = result;
-    return result;
   }
   async create(model: string, values: any): Promise<number> {
     return this.call_kw(model, 'create', [values]);
