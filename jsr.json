@@ -1,0 +1,19 @@
+{
+  "name": "@fernandoslim/odoo-jsonrpc",
+  "version": "1.8.0",
+  "description": "A lightweight Odoo JSON-RPC client with zero dependencies.",
+  "exports": "./src/OdooJSONRpc.ts",
+  "publish": {
+    "include": ["dist", "README.md", "LICENSE"],
+    "exclude": ["src", "tsconfig.json"]
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": "https://github.com/fernandoslim/odoo-jsonrpc.git",
+  "keywords": ["odoo", "jsonrpc", "typescript", "rpc", "client"],
+  "author": "Fernando Slim <xferchox@gmail.com>",
+  "license": "ISC",
+  "bugs": "https://github.com/fernandoslim/odoo-jsonrpc/issues",
+  "homepage": "https://github.com/fernandoslim/odoo-jsonrpc#readme"
+}
