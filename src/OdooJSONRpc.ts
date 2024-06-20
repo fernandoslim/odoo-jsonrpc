@@ -114,7 +114,7 @@ export default class OdooJSONRpc {
   get authResponse(): OdooAuthenticateResponse {
     return this.auth_response;
   }
-  async call_kw(model: string, method: string, args: any[], kwargs: any = {}) {
+  async call_kw(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
     if (!this.session_id) {
       throw new Error('session_id not found. Please connect first.');
     }
@@ -295,14 +295,14 @@ export default class OdooJSONRpc {
     }
     return (await this.read<any>(irModelData[0].model, [irModelData[0].res_id], fields))[0];
   }
-  async updateByExternalId(externalId: string, params: any = {}) {
+  async updateByExternalId(externalId: string, params: any = {}): Promise<any> {
     const irModelData = await this.searchRead<any>('ir.model.data', [['name', '=', externalId]], ['res_id', 'model']);
     if (!irModelData.length) {
       throw new Error(`No matching record found for external identifier ${externalId}`);
     }
     return await this.update(irModelData[0].model, irModelData[0].res_id, params);
   }
-  async deleteByExternalId(externalId: string) {
+  async deleteByExternalId(externalId: string): Promise<any> {
     const irModelData = await this.searchRead<any>('ir.model.data', [['name', '=', externalId]], ['res_id', 'model']);
     if (!irModelData.length) {
       throw new Error(`No matching record found for external ID ${externalId}`);
