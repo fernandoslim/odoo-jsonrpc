@@ -133,6 +133,7 @@ export default class OdooJSONRpc {
     const headers: any = {
       'Content-Type': 'application/json',
       'X-Openerp-Session-Id': this.session_id,
+      'Cookie': `session_id=${this.session_id}`,
     };
     const [response, request_error] = await Try(() =>
       fetch(endpoint, {
@@ -172,6 +173,7 @@ export default class OdooJSONRpc {
           headers: {
             'Content-Type': 'application/json',
             'X-Openerp-Session-Id': this.session_id,
+            'Cookie': `session_id=${this.session_id}`,
           },
           body: JSON.stringify(data),
         })
