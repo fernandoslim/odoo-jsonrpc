@@ -114,6 +114,9 @@ export default class OdooJSONRpc {
   get authResponse(): OdooAuthenticateResponse {
     return this.auth_response;
   }
+  get sessionId(): string {
+    return this.session_id;
+  }
   async call_kw(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
     if (!this.session_id) {
       throw new Error('session_id not found. Please connect first.');
@@ -133,7 +136,7 @@ export default class OdooJSONRpc {
     const headers: any = {
       'Content-Type': 'application/json',
       'X-Openerp-Session-Id': this.session_id,
-      'Cookie': `session_id=${this.session_id}`,
+      Cookie: `session_id=${this.session_id}`,
     };
     const [response, request_error] = await Try(() =>
       fetch(endpoint, {
@@ -173,7 +176,7 @@ export default class OdooJSONRpc {
           headers: {
             'Content-Type': 'application/json',
             'X-Openerp-Session-Id': this.session_id,
-            'Cookie': `session_id=${this.session_id}`,
+            Cookie: `session_id=${this.session_id}`,
           },
           body: JSON.stringify(data),
         })
