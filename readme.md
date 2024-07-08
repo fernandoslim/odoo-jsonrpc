@@ -10,9 +10,11 @@ JSON-RPC significantly outperforms XML-RPC in our synthetic benchmark tests.
 
 Synthetic Benchmark with [HonoJS](https://github.com/honojs)
 
-`hey -n 2000 -c 80 -m GET -H "Content-Type: application/json" -H "Authorization: Bearer honoiscool" http://localhost:3000/v1/contacts/3`
+```bash
+hey -n 2000 -c 80 -m GET -H "Content-Type: application/json" -H "Authorization: Bearer honoiscool" http://localhost:3000/v1/contacts/3
+```
 
-### JSON-RPC
+JSON-RPC
 
 ```bash
 Total: 3.2409 secs
@@ -22,7 +24,7 @@ Average: 0.1220 secs
 Requests/sec: 617.1133
 ```
 
-### XML-RPC
+XML-RPC
 
 ```bash
 Total: 5.6660 secs
