@@ -1,6 +1,6 @@
 {
   "name": "@fernandoslim/odoo-jsonrpc",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "A lightweight Odoo JSON-RPC client with zero dependencies.",
   "exports": "./src/OdooJSONRpc.ts",
   "types": "./dist/OdooJSONRpc.d.ts",
