@@ -87,7 +87,7 @@ export const createSalesOrder = async (salesorder_data: SalesOrder) => {
 ```js
 import OdooJSONRpc from '@fernandoslim/odoo-jsonrpc';
 
-// Log in with username and password
+// Authenticating with username and password
 const odoo = new OdooJSONRpc({
   baseUrl: process.env.ODOO_BASE_URL!,
   port: Number(process.env.ODOO_PORT!),
@@ -105,15 +105,47 @@ const odoo = new OdooJSONRpc({
   baseUrl: process.env.ODOO_BASE_URL!,
   port: Number(process.env.ODOO_PORT!),
   db: process.env.ODOO_DB!,
-  sessionId: "odoo-is-cool"
+  sessionId: "12eb065d6b17d27723a72f5dcb0d85071ae346e2"
 });
+```
 
-// If you need OdooAuthenticateResponse
-const auth_response = await odoo.connect();
+```js
+// Authenticating with api key
+const odoo = new OdooJSONRpc({
+  baseUrl: process.env.ODOO_BASE_URL!,
+  port: Number(process.env.ODOO_PORT!),
+  db: process.env.ODOO_DB!,
+  username: process.env.ODOO_USERNAME!,
+  apiKey: 'c721a30555935cbabe8851df3f3eb9e60e850711'
+});
+```
 
-const partnerId = await odoo.create("res.partner", {
-  name: "Kool Keith",
-  email: "lostinspace@example.com",
+```js
+// Authenticate and connect to the Odoo server
+// This method returns different types of responses depending on the authentication method:
+// - When using credentials or a session ID, it returns a full OdooAuthenticateWithCredentialsResponse
+// - When using an API key, it returns a simpler OdooAuthenticateWithApiKeyResponse
+// The full response (OdooAuthenticateWithCredentialsResponse) contains additional user and system information
+const authResponse = await odoo.connect();
+```
+
+```js
+// Type guard to determine if the authentication response is a full credentials response.
+// This function distinguishes between the two possible authentication response types:
+// - OdooAuthenticateWithCredentialsResponse (full response with user details)
+// - OdooAuthenticateWithApiKeyResponse (simple response with just the user ID)
+const authResponse = await odoo.connect();
+if (isCredentialsResponse(authResponse)) {
+  console.log('Authenticated user:', authResponse.username);
+} else {
+  console.log('Authenticated with API key, user ID:', authResponse.uid);
+}
+```
+
+```js
+const partnerId = await odoo.create('res.partner', {
+  name: 'Kool Keith',
+  email: 'lostinspace@example.com',
 });
 console.log(`Partner created with ID ${partnerId}`);
 
