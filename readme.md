@@ -6,13 +6,13 @@ Based on [OdooAwait](https://github.com/vettloffah/odoo-await) which uses XML-RP
 
 ## Performance
 
-JSON-RPC is approximately 20% faster than XML-RPC and allow more request/s
+JSON-RPC significantly outperforms XML-RPC in our synthetic benchmark tests.
 
 Synthetic Benchmark with [HonoJS](https://github.com/honojs)
 
-hey -n 2000 -c 80 -m GET -H "Content-Type: application/json" -H "Authorization: Bearer honoiscool" http://localhost:3000/v1/contacts/3
+`hey -n 2000 -c 80 -m GET -H "Content-Type: application/json" -H "Authorization: Bearer honoiscool" http://localhost:3000/v1/contacts/3`
 
-JSON-RPC
+### JSON-RPC
 
 ```bash
 Total: 3.2409 secs
@@ -22,7 +22,7 @@ Average: 0.1220 secs
 Requests/sec: 617.1133
 ```
 
-XML-RPC
+### XML-RPC
 
 ```bash
 Total: 5.6660 secs
@@ -31,6 +31,11 @@ Fastest: 0.0978 secs
 Average: 0.2135 secs
 Requests/sec: 352.9848
 ```
+
+Based on these results:
+
+- JSON-RPC processes approximately 75% more requests per second than XML-RPC.
+- JSON-RPC's average response time is about 43% faster than XML-RPC.
 
 ## Node version
 
