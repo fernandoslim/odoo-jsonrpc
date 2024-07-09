@@ -1,6 +1,6 @@
-type OdooSearchDomain = any | any[];
+export type OdooSearchDomain = any | any[];
 
-interface OdooSearchReadOptions {
+export interface OdooSearchReadOptions {
   offset?: number;
   limit?: number;
   order?: string;
@@ -77,23 +77,23 @@ export type UserSettings = {
 export type UserId = {
   id: number;
 };
-type OdooConnectionBase = {
-  baseUrl: string;
-  port: number;
-  db: string;
+export type OdooConnectionBase = {
+  baseUrl?: string;
+  port?: number;
+  db?: string;
 };
 
-interface ConnectionWithSession extends OdooConnectionBase {
-  sessionId: string;
+export interface ConnectionWithSession extends OdooConnectionBase {
+  sessionId?: string;
 }
 
-interface ConnectionWithCredentials extends OdooConnectionBase {
-  username: string;
+export interface ConnectionWithCredentials extends OdooConnectionBase {
+  username?: string;
   password?: string;
   apiKey?: string;
 }
 
-type OdooConnection = ConnectionWithSession | ConnectionWithCredentials;
+export type OdooConnection = ConnectionWithSession | ConnectionWithCredentials;
 
 export const Try = async <T>(fn: () => Promise<T>): Promise<[T, null] | [null, Error]> => {
   try {
@@ -131,20 +131,16 @@ export const isCredentialsResponse = (
   return 'username' in response;
 };
 export default class OdooJSONRpc {
-  public url: string;
-
-  private session_id: string | undefined;
-  private auth_response: any;
+  public url: string | undefined = undefined;
+  public is_connected = false;
+  private session_id: string | undefined = undefined;
+  private auth_response: any = null;
   private uid: number | undefined = undefined;
   private api_key: string | undefined = undefined;
+  private config: OdooConnection = {};
 
-  constructor(private config: OdooConnection) {
-    this.url = `${this.config.baseUrl}:${this.config.port}`;
-    if ('sessionId' in this.config) {
-      this.session_id = this.config.sessionId;
-    } else if ('apiKey' in this.config) {
-      this.api_key = this.config.apiKey;
-    }
+  constructor(config: OdooConnection = {}) {
+    this.initialize(config);
   }
   get uId(): number | undefined {
     return this.uid ?? this.auth_response?.uid;
@@ -155,99 +151,32 @@ export default class OdooJSONRpc {
   get sessionId(): string | undefined {
     return this.session_id;
   }
-  get port(): number {
-    return this.config.port;
+  get port(): number | undefined {
+    return this.config?.port;
   }
-  async call_kw(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
-    if (!this.session_id && !this.uid) {
-      throw new Error('Please connect with credentials or api key first.');
+  //Initializes the OdooJSONRpc instance with the provided configuration.
+  public initialize(config: OdooConnection) {
+    this.config = config;
+    if (config.baseUrl && config.port) {
+      this.url = `${config.baseUrl}:${config.port}`;
     }
-    if (this.session_id) {
-      return this.callWithSessionId(model, method, args, kwargs);
-    } else if (this.uid) {
-      return this.callWithUid(model, method, args, kwargs);
+    if ('sessionId' in config && config.sessionId) {
+      this.session_id = config.sessionId;
+    } else if ('apiKey' in config && config.apiKey) {
+      this.api_key = config.apiKey;
     }
+    this.is_connected = false;
+    this.auth_response = undefined;
+    this.uid = undefined;
   }
-  private async callWithUid(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
-    const endpoint = `${this.url}/jsonrpc`;
-    const params = {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        service: 'object',
-        method: 'execute_kw',
-        args: [this.config.db, this.uid, this.api_key, model, method, args, kwargs],
-      },
-      id: new Date().getTime(),
-    };
-    const headers = {
-      'Content-Type': 'application/json',
-    };
-    const [response, request_error] = await Try(() =>
-      fetch(endpoint, {
-        headers,
-        method: 'POST',
-        body: JSON.stringify(params),
-      })
-    );
-    if (request_error) {
-      throw request_error;
+  //Connects to the Odoo server using the provided or existing configuration.
+  async connect(config?: OdooConnection): Promise<OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse> {
+    if (config) {
+      this.initialize(config);
     }
-    if (!response.ok) {
-      throw new Error(response.statusText);
+    if (!this.config.baseUrl || !this.config.port || !this.config.db) {
+      throw new Error('Incomplete configuration. Please provide baseUrl, port, and db.');
     }
-    const [body, body_parse_error] = await Try(() => response.json());
-    if (body_parse_error) {
-      throw body_parse_error;
-    }
-    const { result, error } = body;
-    if (error) {
-      throw new Error(body?.error?.data?.message);
-    }
-    return result;
-  }
-  private async callWithSessionId(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
-    const endpoint = `${this.url}/web/dataset/call_kw`;
-    const params = {
-      jsonrpc: '2.0',
-      method: 'call',
-      params: {
-        model,
-        method,
-        args,
-        kwargs,
-      },
-      id: new Date().getTime(),
-    };
-    const headers: any = {
-      'Content-Type': 'application/json',
-      'X-Openerp-Session-Id': this.session_id,
-      Cookie: `session_id=${this.session_id}`,
-    };
-    const [response, request_error] = await Try(() =>
-      fetch(endpoint, {
-        headers,
-        method: 'POST',
-        body: JSON.stringify(params),
-      })
-    );
-    if (request_error) {
-      throw request_error;
-    }
-    if (!response.ok) {
-      throw new Error(response.statusText);
-    }
-    const [body, body_parse_error] = await Try(() => response.json());
-    if (body_parse_error) {
-      throw body_parse_error;
-    }
-    const { result, error } = body;
-    if (error) {
-      throw new Error(body?.error?.data?.message);
-    }
-    return result;
-  }
-  async connect(): Promise<OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse> {
     const result = await ('sessionId' in this.config
       ? this.connectWithSessionId()
       : 'apiKey' in this.config
@@ -257,16 +186,13 @@ export default class OdooJSONRpc {
     if (this.isCredentialsResponse(result)) {
       this.auth_response = result;
     } else {
+      this.auth_response = result;
       this.uid = result.uid;
     }
-
-    return result;
+    this.is_connected = true;
+    return this.auth_response;
   }
-  private isCredentialsResponse(
-    response: OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse
-  ): response is OdooAuthenticateWithCredentialsResponse {
-    return 'username' in response;
-  }
+  //Connects to the Odoo server using an API key.
   private async connectWithApiKey(config: ConnectionWithCredentials): Promise<OdooAuthenticateWithApiKeyResponse> {
     const endpoint = `${this.url}/jsonrpc`;
     const params = {
@@ -305,6 +231,7 @@ export default class OdooJSONRpc {
     this.uid = result;
     return { uid: result };
   }
+  //Connects to the Odoo server using username and password credentials.
   private async connectWithCredentials(config: ConnectionWithCredentials): Promise<OdooAuthenticateWithCredentialsResponse> {
     const endpoint = `${this.url}/web/session/authenticate`;
     const params = {
@@ -355,6 +282,7 @@ export default class OdooJSONRpc {
     this.auth_response = result;
     return result;
   }
+  //Connects to the Odoo server using an existing session ID.
   private async connectWithSessionId(): Promise<OdooAuthenticateWithCredentialsResponse> {
     const endpoint = `${this.url}/web/session/get_session_info`;
     const params = {
@@ -397,31 +325,141 @@ export default class OdooJSONRpc {
     this.auth_response = result;
     return result;
   }
+  //Calls a method on the Odoo server using the RPC protocol.
+  async call_kw(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
+    if (!this.is_connected) {
+      this.auth_response = await this.connect();
+    }
+    if (!this.session_id && !this.uid) {
+      this.is_connected = false;
+      throw new Error('Please connect with credentials or api key first.');
+    }
+    if (this.session_id) {
+      return this.callWithSessionId(model, method, args, kwargs);
+    } else if (this.uid) {
+      return this.callWithUid(model, method, args, kwargs);
+    }
+  }
+  //Calls a method on the Odoo server using UID and API key authentication.
+  private async callWithUid(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
+    const endpoint = `${this.url}/jsonrpc`;
+    const params = {
+      jsonrpc: '2.0',
+      method: 'call',
+      params: {
+        service: 'object',
+        method: 'execute_kw',
+        args: [this.config.db, this.uid, this.api_key, model, method, args, kwargs],
+      },
+      id: new Date().getTime(),
+    };
+    const headers = {
+      'Content-Type': 'application/json',
+    };
+    const [response, request_error] = await Try(() =>
+      fetch(endpoint, {
+        headers,
+        method: 'POST',
+        body: JSON.stringify(params),
+      })
+    );
+    if (request_error) {
+      throw request_error;
+    }
+    if (!response.ok) {
+      throw new Error(response.statusText);
+    }
+    const [body, body_parse_error] = await Try(() => response.json());
+    if (body_parse_error) {
+      throw body_parse_error;
+    }
+    const { result, error } = body;
+    if (error) {
+      throw new Error(body?.error?.data?.message);
+    }
+    return result;
+  }
+  //Calls a method on the Odoo server using session ID authentication.
+  private async callWithSessionId(model: string, method: string, args: any[], kwargs: any = {}): Promise<any> {
+    const endpoint = `${this.url}/web/dataset/call_kw`;
+    const params = {
+      jsonrpc: '2.0',
+      method: 'call',
+      params: {
+        model,
+        method,
+        args,
+        kwargs,
+      },
+      id: new Date().getTime(),
+    };
+    const headers: any = {
+      'Content-Type': 'application/json',
+      'X-Openerp-Session-Id': this.session_id,
+      Cookie: `session_id=${this.session_id}`,
+    };
+    const [response, request_error] = await Try(() =>
+      fetch(endpoint, {
+        headers,
+        method: 'POST',
+        body: JSON.stringify(params),
+      })
+    );
+    if (request_error) {
+      throw request_error;
+    }
+    if (!response.ok) {
+      throw new Error(response.statusText);
+    }
+    const [body, body_parse_error] = await Try(() => response.json());
+    if (body_parse_error) {
+      throw body_parse_error;
+    }
+    const { result, error } = body;
+    if (error) {
+      throw new Error(body?.error?.data?.message);
+    }
+    return result;
+  }
+  //Type guard to determine if the authentication response is a full credentials response.
+  private isCredentialsResponse(
+    response: OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse
+  ): response is OdooAuthenticateWithCredentialsResponse {
+    return 'username' in response;
+  }
+  //Creates a new record in the specified Odoo model.
   async create(model: string, values: any): Promise<number> {
     return this.call_kw(model, 'create', [values]);
   }
+  //Reads records from the specified Odoo model.
   async read<T>(model: string, id: number | number[], fields: string[]): Promise<T[]> {
     return this.call_kw(model, 'read', [id, fields]);
   }
+  //Updates a record in the specified Odoo model.
   async update(model: string, id: number, values: any): Promise<boolean> {
     return this.call_kw(model, 'write', [[id], values]);
   }
+  //Deletes a record from the specified Odoo model.
   async delete(model: string, id: number): Promise<boolean> {
     return this.call_kw(model, 'unlink', [[id]]);
   }
+  //Searches and reads records from the specified Odoo model.
   async searchRead<T>(model: string, domain: OdooSearchDomain, fields: string[], opts?: OdooSearchReadOptions): Promise<T[]> {
     return (await this.call_kw(model, 'search_read', [domain, fields], opts)) || [];
   }
-
+  //Searches for records in the specified Odoo model.
   async search(model: string, domain: OdooSearchDomain): Promise<number[]> {
     return (await this.call_kw(model, 'search', [domain])) || [];
   }
+  //Retrieves the fields information for the specified Odoo model.
   async getFields(model: string): Promise<any> {
     return this.call_kw(model, 'fields_get', []);
   }
+  //Executes an action on the specified Odoo model for given record IDs.
   async action(model: string, action: string, ids: number[]): Promise<boolean> {
     return this.call_kw(model, action, ids);
   }
+  //Creates an external ID for a record in the specified Odoo model.
   async createExternalId(model: string, recordId: number, externalId: string, moduleName?: string): Promise<number> {
     return await this.call_kw('ir.model.data', 'create', [
       [
@@ -434,6 +472,7 @@ export default class OdooJSONRpc {
       ],
     ]);
   }
+  //Searches for a record by its external ID.
   async searchByExternalId(externalId: string): Promise<number> {
     const irModelData = await this.searchRead<any>('ir.model.data', [['name', '=', externalId]], ['res_id']);
     if (!irModelData.length) {
@@ -441,6 +480,7 @@ export default class OdooJSONRpc {
     }
     return irModelData[0]['res_id'];
   }
+  //Reads a record by its external ID.
   async readByExternalId<T>(externalId: string, fields: string[] = []): Promise<T> {
     const irModelData = await this.searchRead<any>('ir.model.data', [['name', '=', externalId]], ['res_id', 'model']);
     if (!irModelData.length) {
@@ -448,6 +488,7 @@ export default class OdooJSONRpc {
     }
     return (await this.read<any>(irModelData[0].model, [irModelData[0].res_id], fields))[0];
   }
+  //Updates a record by its external ID.
   async updateByExternalId(externalId: string, params: any = {}): Promise<any> {
     const irModelData = await this.searchRead<any>('ir.model.data', [['name', '=', externalId]], ['res_id', 'model']);
     if (!irModelData.length) {
@@ -455,6 +496,7 @@ export default class OdooJSONRpc {
     }
     return await this.update(irModelData[0].model, irModelData[0].res_id, params);
   }
+  //Deletes a record by its external ID.
   async deleteByExternalId(externalId: string): Promise<any> {
     const irModelData = await this.searchRead<any>('ir.model.data', [['name', '=', externalId]], ['res_id', 'model']);
     if (!irModelData.length) {

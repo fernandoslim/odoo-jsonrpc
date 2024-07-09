@@ -89,7 +89,51 @@ export const createSalesOrder = async (salesorder_data: SalesOrder) => {
 };
 ```
 
-## Usage
+## Cloudflare
+
+```js
+import { Hono } from 'hono';
+
+type Bindings = {
+  ODOO_BASE_URL: string;
+  ODOO_PORT: number;
+  ODOO_DB: string;
+  ODOO_USERNAME: string;
+  ODOO_PASSWORD: string;
+  ODOO_API_KEY: string;
+};
+const app = new Hono<{ Bindings: Bindings }>();
+const odoo = new OdooJSONRpc();
+
+app.use('/odoo/*', async (c, next) => {
+  if (!odoo.is_connected) {
+    await odoo.connect({
+      baseUrl: c.env.ODOO_BASE_URL,
+      port: c.env.ODOO_PORT,
+      db: c.env.ODOO_DB,
+      username: c.env.ODOO_USERNAME,
+      apiKey: c.env.ODOO_API_KEY,
+    });
+  }
+  return next();
+});
+
+// Get res.partner by id
+app.get('/odoo/contacts/:id', async (c) => {
+  const { id } = c.req.param();
+  const [contacts, error] = await Try(() => odoo.read<{ id: number; name: string; email: string }>('res.partner', parseInt(id), ['name', 'email']));
+  if (error) {
+    return c.text(error.message, 422);
+  }
+  if (contacts.length === 0) {
+    return c.text('not found', 404);
+  }
+  const [contact] = contacts;
+  return c.json(contact, 200);
+});
+```
+
+## Node
 
 ```js
 import OdooJSONRpc from '@fernandoslim/odoo-jsonrpc';
