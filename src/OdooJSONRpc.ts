@@ -128,7 +128,7 @@ export const Try = async <T>(fn: () => Promise<T>): Promise<[T, null] | [null, E
 export const isCredentialsResponse = (
   response: OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse
 ): response is OdooAuthenticateWithCredentialsResponse => {
-  return 'username' in response;
+  return response && 'username' in response;
 };
 export default class OdooJSONRpc {
   public url: string | undefined = undefined;
