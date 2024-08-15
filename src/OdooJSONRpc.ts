@@ -180,8 +180,13 @@ export default class OdooJSONRpc {
     const result = await ('sessionId' in this.config
       ? this.connectWithSessionId()
       : 'apiKey' in this.config
-      ? this.connectWithApiKey(this.config as ConnectionWithCredentials)
-      : this.connectWithCredentials(this.config as ConnectionWithCredentials));
+        ? this.connectWithApiKey(this.config as ConnectionWithCredentials)
+        : this.connectWithCredentials(this.config as ConnectionWithCredentials));
+
+
+    if (!result && typeof result !== 'object') {
+      throw new Error('Connection failed to Odoo JSON-RPC server');
+    }
 
     if (this.isCredentialsResponse(result)) {
       this.auth_response = result;
@@ -425,7 +430,7 @@ export default class OdooJSONRpc {
   private isCredentialsResponse(
     response: OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse
   ): response is OdooAuthenticateWithCredentialsResponse {
-    return 'username' in response;
+    return response && 'username' in response;
   }
   //Creates a new record in the specified Odoo model.
   async create(model: string, values: any): Promise<number> {
