@@ -187,7 +187,7 @@ export default class OdooJSONRpc {
       throw new Error('Authentication failed. Please check your credentials.');
     }
 
-    if (this.isCredentialsResponse(result)) {
+    if (isCredentialsResponse(result)) {
       this.auth_response = result;
     } else {
       this.auth_response = result;
@@ -424,12 +424,6 @@ export default class OdooJSONRpc {
       throw new Error(body?.error?.data?.message);
     }
     return result;
-  }
-  //Type guard to determine if the authentication response is a full credentials response.
-  private isCredentialsResponse(
-    response: OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse
-  ): response is OdooAuthenticateWithCredentialsResponse {
-    return response && 'username' in response;
   }
   //Creates a new record in the specified Odoo model.
   async create(model: string, values: any): Promise<number> {
