@@ -183,6 +183,10 @@ export default class OdooJSONRpc {
       ? this.connectWithApiKey(this.config as ConnectionWithCredentials)
       : this.connectWithCredentials(this.config as ConnectionWithCredentials));
 
+    if (!result) {
+      throw new Error('Authentication failed. Please check your credentials.');
+    }
+
     if (this.isCredentialsResponse(result)) {
       this.auth_response = result;
     } else {
@@ -425,7 +429,7 @@ export default class OdooJSONRpc {
   private isCredentialsResponse(
     response: OdooAuthenticateWithCredentialsResponse | OdooAuthenticateWithApiKeyResponse
   ): response is OdooAuthenticateWithCredentialsResponse {
-    return 'username' in response;
+    return response && 'username' in response;
   }
   //Creates a new record in the specified Odoo model.
   async create(model: string, values: any): Promise<number> {
