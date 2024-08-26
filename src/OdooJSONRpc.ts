@@ -180,8 +180,8 @@ export default class OdooJSONRpc {
     const result = await ('sessionId' in this.config
       ? this.connectWithSessionId()
       : 'apiKey' in this.config
-      ? this.connectWithApiKey(this.config as ConnectionWithCredentials)
-      : this.connectWithCredentials(this.config as ConnectionWithCredentials));
+        ? this.connectWithApiKey(this.config as ConnectionWithCredentials)
+        : this.connectWithCredentials(this.config as ConnectionWithCredentials));
 
     if (!result) {
       throw new Error('Authentication failed. Please check your credentials.');
@@ -501,5 +501,53 @@ export default class OdooJSONRpc {
       throw new Error(`No matching record found for external ID ${externalId}`);
     }
     return await this.delete(irModelData[0].model, irModelData[0].res_id);
+  }
+  //Disconnects from the Odoo server
+  async disconnect(): Promise<any> {
+    const endpoint = `${this.url}/web/session/destroy`;
+    const params = {
+      jsonrpc: '2.0',
+      method: 'call',
+      params: {},
+      id: new Date().getTime(),
+    };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.session_id) {
+      headers['X-Openerp-Session-Id'] = this.session_id;
+      headers['Cookie'] = `session_id=${this.session_id}`;
+    } else {
+      throw new Error('session_id not found. Please connect first.');
+    }
+
+    const [response, auth_error] = await Try(() =>
+      fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(params),
+      })
+    )
+
+    if (auth_error) {
+      throw auth_error;
+    }
+    if (!response.ok) {
+      throw new Error(response.statusText);
+    }
+    const [body, body_parse_error] = await Try(() => response.json());
+    if (body_parse_error) {
+      throw body_parse_error;
+    }
+    const { error } = body;
+    if (error) {
+      throw new Error(body?.error?.data?.message);
+    }
+    this.is_connected = false;
+    this.auth_response = undefined;
+    this.uid = undefined;
+    this.session_id = undefined;
+    return true;
   }
 }
