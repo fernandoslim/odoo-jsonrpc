@@ -437,6 +437,16 @@ export default class OdooJSONRpc {
   async update(model: string, id: number, values: any): Promise<boolean> {
     return this.call_kw(model, 'write', [[id], values]);
   }
+  /**
+   * Updates the translations for a field in the specified Odoo model.
+   * @param model Model to update eg. product.template
+   * @param id Id of the model to update
+   * @param field field to update eg. name
+   * @param translations object with translations eg. {de_DE: "Neuer Name", en_GB: "Name"}
+   */
+  async updateFieldTranslations(model: string, id: number, field: string, translations: { [key: string]: string }) {
+    return this.call_kw(model, "update_field_translations", [[id], field, translations]);
+  }
   //Deletes a record from the specified Odoo model.
   async delete(model: string, id: number): Promise<boolean> {
     return this.call_kw(model, 'unlink', [[id]]);

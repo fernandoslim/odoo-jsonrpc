@@ -392,6 +392,16 @@ const records = await odoo.searchRead(`res.partner`, [], ['name', 'city'], {
 });
 ```
 
+#### odoo.updateFieldTranslations(model, id, field, translations)
+
+Updates the translations of a specific field.
+Translations needs to be an Object with keys as languages and values as translations.
+
+```js
+const result = await odoo.updateFieldTranslations(`product.template`, 1, `name`, { de_DE: 'Neuer Name', en_GB: 'New name' })
+console.log(result) // true if it was successful
+```
+
 #### Complex domain filters
 
 A domain filter array can be supplied if any of the alternate domain filters are needed, such as
