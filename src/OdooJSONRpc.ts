@@ -180,8 +180,8 @@ export default class OdooJSONRpc {
     const result = await ('sessionId' in this.config
       ? this.connectWithSessionId()
       : 'apiKey' in this.config
-        ? this.connectWithApiKey(this.config as ConnectionWithCredentials)
-        : this.connectWithCredentials(this.config as ConnectionWithCredentials));
+      ? this.connectWithApiKey(this.config as ConnectionWithCredentials)
+      : this.connectWithCredentials(this.config as ConnectionWithCredentials));
 
     if (!result) {
       throw new Error('Authentication failed. Please check your credentials.');
@@ -444,8 +444,8 @@ export default class OdooJSONRpc {
    * @param field field to update eg. name
    * @param translations object with translations eg. {de_DE: "Neuer Name", en_GB: "Name"}
    */
-  async updateFieldTranslations(model: string, id: number, field: string, translations: { [key: string]: string }) {
-    return this.call_kw(model, "update_field_translations", [[id], field, translations]);
+  async updateFieldTranslations(model: string, id: number, field: string, translations: { [key: string]: string }): Promise<boolean> {
+    return this.call_kw(model, 'update_field_translations', [[id], field, translations]);
   }
   //Deletes a record from the specified Odoo model.
   async delete(model: string, id: number): Promise<boolean> {
@@ -538,7 +538,7 @@ export default class OdooJSONRpc {
         headers,
         body: JSON.stringify(params),
       })
-    )
+    );
 
     if (auth_error) {
       throw auth_error;
