@@ -2,6 +2,7 @@
   "name": "@fernandoslim/odoo-jsonrpc",
   "version": "2.1.0",
   "description": "A lightweight Odoo JSON-RPC client with zero dependencies.",
+  "license": "ISC",
   "exports": "./src/index.ts",
   "publish": {
     "include": ["src", "readme.md", "LICENSE"],
