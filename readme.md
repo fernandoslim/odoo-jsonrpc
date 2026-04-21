@@ -1,107 +1,155 @@
 # Odoo JSON-RPC
 
-A lightweight Odoo JSON-RPC client with zero dependencies.
+Lightweight Odoo JSON-RPC client. Zero dependencies. TypeScript-first. Works on Node 18+, Bun, Deno, and Cloudflare Workers.
 
-Based on [OdooAwait](https://github.com/vettloffah/odoo-await) which uses XML-RPC. Special thanks to [@vettloffah](https://github.com/vettloffah).
+Based on [OdooAwait](https://github.com/vettloffah/odoo-await) (XML-RPC). Thanks to [@vettloffah](https://github.com/vettloffah).
 
-## Performance
+- [Features](#features)
+- [Install](#install)
+- [Quick Start](#quick-start)
+- [Authentication](#authentication)
+- [API Reference](#api-reference)
+- [CRUD](#crud)
+- [Search & Search Read](#search--search-read)
+- [Domain Filters](#domain-filters)
+- [Relational Fields (many2many / one2many)](#relational-fields-many2many--one2many)
+- [Field Translations](#field-translations)
+- [External Identifiers](#external-identifiers)
+- [Error Handling with `Try`](#error-handling-with-try)
+- [Disconnect](#disconnect)
+- [TypeScript](#typescript)
+- [Benchmarks](#benchmarks)
+- [License](#license)
 
-JSON-RPC significantly outperforms XML-RPC in our synthetic benchmark tests.
+## Features
 
-Synthetic Benchmark with [HonoJS](https://github.com/honojs)
+- Zero runtime dependencies
+- Dual ESM + CommonJS build with `.d.ts` + `.d.cts`
+- Three auth modes: credentials, API key, existing session
+- `fetch`-based — runs anywhere `fetch` is available
+- Small surface: `create`, `read`, `update`, `delete`, `search`, `searchRead`, `action`, `call_kw`, and external-ID helpers
+- Go-style error helper (`Try`) to avoid try/catch noise
 
-```bash
-hey -n 2000 -c 80 -m GET -H "Content-Type: application/json" -H "Authorization: Bearer honoiscool" http://localhost:3000/v1/contacts/3
-```
-
-JSON-RPC
-
-```bash
-Total: 3.2409 secs
-Slowest: 0.4474 secs
-Fastest: 0.0852 secs
-Average: 0.1220 secs
-Requests/sec: 617.1133
-```
-
-XML-RPC
-
-```bash
-Total: 5.6660 secs
-Slowest: 0.7938 secs
-Fastest: 0.0978 secs
-Average: 0.2135 secs
-Requests/sec: 352.9848
-```
-
-Based on these results:
-
-- JSON-RPC processes approximately 75% more requests per second than XML-RPC.
-- JSON-RPC's average response time is about 43% faster than XML-RPC.
-
-## Node version
-
-Node 18+
-Designed to work with Cloudflare Workers
-
-## Installation
+## Install
 
 ```bash
-npm install odoo-jsonrpc
+npm install @fernandoslim/odoo-jsonrpc
+# or
+pnpm add @fernandoslim/odoo-jsonrpc
+# or
+bun add @fernandoslim/odoo-jsonrpc
 ```
 
-## Helpers
+Deno / JSR:
 
-### Try
-
-Introduced the Try helper, which encapsulates a try/catch block in a smart way. This allows you to make requests and handle responses and errors more reliably, similar to Go.
-
-```js
-// Getting a contact by id
-export const getContactById = async (contact_id: number) => {
-  const [contacts, error] = await Try(() => odoo.read('res.partner', contact_id, ['name', 'email', 'mobile']));
-  if (error) {
-    throw error;
-  }
-  if (contacts.length === 0) {
-    throw new Error('Contact Not Found.');
-  }
-  const [contact] = contacts;
-  return contact;
-};
+```bash
+deno add jsr:@fernandoslim/odoo-jsonrpc
 ```
 
-```js
-// Create and confirm a Sales Order
-export const createSalesOrder = async (salesorder_data: SalesOrder) => {
-  // Creating Sales Order
-  const [salesorder_id, creating_salesorder_error] = await Try(() => odoo.create('sale.order', salesorder_data));
-  if (creating_salesorder_error) {
-    throw creating_salesorder_error;
-  }
-  // Confirming Sales Order
-  // If the Sales Order is confirmed, it will return a boolean. Since this value is not used, the underscore (_) is used as a placeholder.
-  const [_, confirming_salesorder_error] = await Try(() => odoo.action('sale.order', 'action_confirm', [salesorder_id]));
-  if (confirming_salesorder_error) {
-    throw confirming_salesorder_error;
-  }
-  return salesorder_id;
-};
+## Quick Start
+
+```ts
+import OdooJSONRpc from '@fernandoslim/odoo-jsonrpc';
+
+const odoo = new OdooJSONRpc({
+  baseUrl: process.env.ODOO_BASE_URL!,
+  port: Number(process.env.ODOO_PORT!),
+  db: process.env.ODOO_DB!,
+  username: process.env.ODOO_USERNAME!,
+  password: process.env.ODOO_PASSWORD!,
+});
+
+await odoo.connect();
+
+const partnerId = await odoo.create('res.partner', {
+  name: 'Kool Keith',
+  email: 'lostinspace@example.com',
+});
+
+const [partner] = await odoo.read<{ id: number; name: string; email: string }>(
+  'res.partner',
+  partnerId,
+  ['name', 'email']
+);
 ```
 
-## Cloudflare
+## Authentication
 
-```js
+`connect()` **must** be called before any other method (except `initialize`).
+
+### With username + password
+
+Returns a full session response including `username`, `partner_id`, `server_version`, etc. Also sets a session cookie used by subsequent calls.
+
+```ts
+const odoo = new OdooJSONRpc({
+  baseUrl: 'https://my-odoo.example.com',
+  port: 443,
+  db: 'my-db',
+  username: 'admin',
+  password: 'secret',
+});
+await odoo.connect();
+```
+
+### With API key
+
+Lightweight. Returns only `{ uid }`. Requests use `execute_kw` via `/jsonrpc`.
+
+```ts
+const odoo = new OdooJSONRpc({
+  baseUrl: 'https://my-odoo.example.com',
+  port: 443,
+  db: 'my-db',
+  username: 'admin',
+  apiKey: 'c721a30555935cbabe8851df3f3eb9e60e850711',
+});
+await odoo.connect();
+```
+
+### With existing session ID
+
+Reuse a session from another source (cookie, cache, etc.).
+
+```ts
+const odoo = new OdooJSONRpc({
+  baseUrl: 'https://my-odoo.example.com',
+  port: 443,
+  db: 'my-db',
+  sessionId: '12eb065d6b17d27723a72f5dcb0d85071ae346e2',
+});
+await odoo.connect();
+```
+
+### Branching on response type
+
+`connect()` returns either `OdooAuthenticateWithCredentialsResponse` or `OdooAuthenticateWithApiKeyResponse`. Use the `isCredentialsResponse` type guard:
+
+```ts
+import OdooJSONRpc, { isCredentialsResponse } from '@fernandoslim/odoo-jsonrpc';
+
+const auth = await odoo.connect();
+if (isCredentialsResponse(auth)) {
+  console.log('Logged in as', auth.username);
+} else {
+  console.log('Logged in with API key, uid:', auth.uid);
+}
+```
+
+### Cloudflare Workers
+
+```ts
 import { Hono } from 'hono';
+import OdooJSONRpc, { Try } from '@fernandoslim/odoo-jsonrpc';
 
 type Bindings = {
   ODOO_BASE_URL: string;
   ODOO_PORT: number;
   ODOO_DB: string;
   ODOO_USERNAME: string;
-  ODOO_PASSWORD: string;
   ODOO_API_KEY: string;
 };
+
 const app = new Hono<{ Bindings: Bindings }>();
 const odoo = new OdooJSONRpc();
 
@@ -118,382 +166,279 @@ app.use('/odoo/*', async (c, next) => {
   return next();
 });
 
-// Get res.partner by id
 app.get('/odoo/contacts/:id', async (c) => {
-  const { id } = c.req.param();
-  const [contacts, error] = await Try(() => odoo.read<{ id: number; name: string; email: string }>('res.partner', parseInt(id), ['name', 'email']));
-  if (error) {
-    return c.text(error.message, 422);
-  }
-  if (contacts.length === 0) {
-    return c.text('not found', 404);
-  }
-  const [contact] = contacts;
-  return c.json(contact, 200);
+  const id = Number(c.req.param('id'));
+  const [contacts, error] = await Try(() =>
+    odoo.read<{ id: number; name: string; email: string }>('res.partner', id, ['name', 'email'])
+  );
+  if (error) return c.text(error.message, 422);
+  if (!contacts.length) return c.text('not found', 404);
+  return c.json(contacts[0], 200);
 });
 ```
 
-## Node
+## API Reference
 
-```js
-import OdooJSONRpc from '@fernandoslim/odoo-jsonrpc';
+| Method | Signature | Returns |
+|---|---|---|
+| `connect` | `connect(config?)` | auth response |
+| `disconnect` | `disconnect()` | `boolean` |
+| `call_kw` | `call_kw(model, method, args, kwargs?)` | `any` |
+| `create` | `create(model, values)` | `number` (id) |
+| `read<T>` | `read(model, id \| ids, fields)` | `T[]` |
+| `update` | `update(model, id, values)` | `boolean` |
+| `delete` | `delete(model, id)` | `boolean` |
+| `search` | `search(model, domain)` | `number[]` |
+| `searchRead<T>` | `searchRead(model, domain, fields, opts?)` | `T[]` |
+| `getFields` | `getFields(model)` | fields map |
+| `action` | `action(model, action, ids)` | `boolean` |
+| `updateFieldTranslations` | `updateFieldTranslations(model, id, field, translations)` | `boolean` |
+| `createExternalId` | `createExternalId(model, recordId, externalId, moduleName?)` | `number` |
+| `searchByExternalId` | `searchByExternalId(externalId)` | `number` |
+| `readByExternalId<T>` | `readByExternalId(externalId, fields?)` | `T` |
+| `updateByExternalId` | `updateByExternalId(externalId, params)` | `boolean` |
+| `deleteByExternalId` | `deleteByExternalId(externalId)` | `boolean` |
 
-// Authenticating with username and password
-const odoo = new OdooJSONRpc({
-  baseUrl: process.env.ODOO_BASE_URL!,
-  port: Number(process.env.ODOO_PORT!),
-  db: process.env.ODOO_DB!,
-  username: process.env.ODOO_USERNAME!,
-  password: process.env.ODOO_PASSWORD!,
-});
-
-await odoo.connect();
-```
-
-```js
-// Working with existing sessionId
-const odoo = new OdooJSONRpc({
-  baseUrl: process.env.ODOO_BASE_URL!,
-  port: Number(process.env.ODOO_PORT!),
-  db: process.env.ODOO_DB!,
-  sessionId: "12eb065d6b17d27723a72f5dcb0d85071ae346e2"
-});
-```
-
-```js
-// Authenticating with api key
-const odoo = new OdooJSONRpc({
-  baseUrl: process.env.ODOO_BASE_URL!,
-  port: Number(process.env.ODOO_PORT!),
-  db: process.env.ODOO_DB!,
-  username: process.env.ODOO_USERNAME!,
-  apiKey: 'c721a30555935cbabe8851df3f3eb9e60e850711'
-});
-```
-
-```js
-// Authenticate and connect to the Odoo server
-// This method returns different types of responses depending on the authentication method:
-// - When using credentials or a session ID, it returns a full OdooAuthenticateWithCredentialsResponse
-// - When using an API key, it returns a simpler OdooAuthenticateWithApiKeyResponse
-// The full response (OdooAuthenticateWithCredentialsResponse) contains additional user and system information
-const authResponse = await odoo.connect();
-```
-
-```js
-// Type guard to determine if the authentication response is a full credentials response.
-// This function distinguishes between the two possible authentication response types:
-// - OdooAuthenticateWithCredentialsResponse (full response with user details)
-// - OdooAuthenticateWithApiKeyResponse (simple response with just the user ID)
-const authResponse = await odoo.connect();
-if (isCredentialsResponse(authResponse)) {
-  console.log('Authenticated user:', authResponse.username);
-} else {
-  console.log('Authenticated with API key, user ID:', authResponse.uid);
-}
-```
-
-```js
-const partnerId = await odoo.create('res.partner', {
-  name: 'Kool Keith',
-  email: 'lostinspace@example.com',
-});
-console.log(`Partner created with ID ${partnerId}`);
-
-// If connecting to a dev instance of odoo.sh, your config will looking something like:
-const odoo = new OdooJSONRpc({
-  baseUrl: 'https://some-database-name-5-29043948.dev.odoo.com/',
-  port: 443,
-  db: 'some-database-name-5-29043948',
-  username: 'myusername',
-  password: 'somepassword',
-});
-```
-
-# Methods
-
-### odoo.connect()
-
-Must be called before other methods.
-
-### odoo.call_kw(model,method,args,kwargs)
-
-This method is wrapped inside the below methods. If below methods don't do what you need, you can use this method. Docs:
-[Odoo External API](https://www.odoo.com/documentation/17.0/developer/reference/external_api.html)
-
-### odoo.action(model, action, recordId)
-
-Execute a server action on a record or a set of records. Oddly, the Odoo API returns **false**
-if it was successful.
-
-```js
-await odoo.action('account.move', 'action_post', [126996, 126995]);
-```
+If a method you need is not wrapped, use `call_kw` directly. See [Odoo External API](https://www.odoo.com/documentation/17.0/developer/reference/external_api.html).
 
 ## CRUD
 
-#### odoo.create(model, params, externalId)
+### Create
 
-Returns the ID of the created record. The externalId parameter is special. If supplied, will create a linked record
-in the `ir.model.data` model. See the "working with external identifiers" section below for more information.
-
-```js
+```ts
 const partnerId = await odoo.create('res.partner', { name: 'Kool Keith' });
 ```
 
-#### odoo.read(model, recordId, fields)
+> To attach an external ID at creation time, call `createExternalId` afterwards. See [External Identifiers](#external-identifiers).
 
-Takes an array of record ID's and fetches the record data. Returns an array.
-Optionally, you can specify which fields to return. This
-is usually a good idea, since there tends to be a lot of fields on the base models (like over 100).
-The record ID is always returned regardless of fields specified.
+### Read
 
-```js
-const records = await odoo.read('res.partner', [54, 1568], ['name', 'email']);
-console.log(records);
-// [ { id: 127362, name: 'Kool Keith', email: 'lostinspace@gmail.com }, { id: 127883, name: 'Jack Dorsey', email: 'jack@twitter.com' } ];
+Returns an array. Pass a single ID or an array of IDs. Always pass a `fields` list — base models (like `res.partner`) have 100+ fields.
+
+```ts
+type Partner = { id: number; name: string; email: string };
+const records = await odoo.read<Partner>('res.partner', [54, 1568], ['name', 'email']);
 ```
 
-#### odoo.update(model, recordId, params)
+### Update
 
-Returns true if successful
-
-```js
-const updated = await odoo.update('res.partner', 54, {
-  street: '334 Living Astro Blvd.',
-});
-console.log(updated); // true
+```ts
+const ok = await odoo.update('res.partner', 54, { street: '334 Living Astro Blvd.' });
 ```
 
-#### odoo.delete(model, recordId)
+### Delete
 
-Returns true if successful.
-
-```js
-const deleted = await odoo.delete('res.partner', 54);
+```ts
+const ok = await odoo.delete('res.partner', 54);
 ```
 
-## many2many and one2many fields
+### Server actions
 
-Odoo handles the related field lists in a special way. You can choose to:
-
-1. `add` an existing record to the list using the record ID
-2. `update` an existing record in the record set using ID and new values
-3. `create` a new record on the fly and add it to the list using values
-4. `replace` all records with other record(s) without deleting the replaced ones from database - using a list of IDs
-5. `delete` one or multiple records from the database
-
-In order to use any of these actions on a field, supply an object as the field value with the following parameters:
-
-- **action** (required) - one of the strings from above
-- **id** (required for actions that use id(s) ) - can usually be an array, or a single number
-- **value** (required for actions that update or create new related records) - can usually be an single value object, or
-  an array of value objects if creating mutliple records
-
-#### Examples
-
-```js
-// Create new realted records on the fly
-await odoo.update('res.partner', 278, {
-  category_id: {
-    action: 'create',
-    value: [{ name: 'a new category' }, { name: 'another new category' }],
-  },
-});
-
-// Update a related record in the set
-await odoo.update('res.partner', 278, {
-  category_id: {
-    action: 'update',
-    id: 3,
-    value: { name: 'Updated category' },
-  },
-});
-
-// Add existing records to the set
-await odoo.update('res.partner', 278, {
-  category_id: {
-    action: 'add',
-    id: 5, // or an array of numbers
-  },
-});
-
-// Remove from the set but don't delete from database
-await odoo.update('res.partner', 278, {
-  category_id: {
-    action: 'remove',
-    id: 5, // or an array of numbers
-  },
-});
-
-// Remove record and delete from database
-await odoo.update('res.partner', 278, {
-  category_id: {
-    action: 'delete',
-    id: 5, // or an array of numbers
-  },
-});
-
-// Clear all records from set, but don't delete
-await odoo.update('res.partner', 278, {
-  category_id: {
-    action: 'clear',
-  },
-});
-
-// Replace records in set with other existing records
-await odoo.update('res.partner', 278, {
-  category_id: {
-    action: 'replace',
-    id: [3, 12, 6], // or a single number
-  },
-});
-
-// You can also just do a regular update with an array of IDs, which will accomplish same as above
-await odoo.update('res.partner', 278, {
-  category_id: [3, 12, 16],
-});
+```ts
+await odoo.action('account.move', 'action_post', [126996, 126995]);
 ```
 
-## Other Odoo API Methods
+> Odoo server actions commonly return `false` on success.
 
-#### odoo.search(model, domain)
+## Search & Search Read
 
-Searches and returns record ID's for all records that match the model and domain.
+### search
 
-```js
-const recordIds = await odoo.search(`res.partner`, {
-  country_id: 'United States',
-});
-console.log(recordIds); // [14,26,33, ... ]
+Returns matching record IDs.
 
-// Return all records of a certain model (omit domain)
-const records = await odoo.searchRead(`res.partner`);
+```ts
+const ids = await odoo.search('res.partner', [['country_id', '=', 'US']]);
 ```
 
-#### odoo.searchRead(model, domain, fields, opts)
+### searchRead
 
-Searches for matching records and returns record data.
-Provide an array of field names if you only want certain fields returned.
+Returns matching records with selected fields. Supports `offset`, `limit`, `order`, and `context`.
 
-```js
-const records = await odoo.searchRead(`res.partner`, [['country_id', '=', 'United States']], ['name', 'city'], {
-  limit: 5,
-  offset: 10,
-  order: 'name, desc',
-  context: { lang: 'en_US' },
-});
-console.log(records); // [ { id: 5, name: 'Kool Keith', city: 'Los Angeles' }, ... ]
+```ts
+type Partner = { id: number; name: string; city: string };
+const records = await odoo.searchRead<Partner>(
+  'res.partner',
+  [['country_id', '=', 'US']],
+  ['name', 'city'],
+  { limit: 5, offset: 10, order: 'name desc', context: { lang: 'en_US' } }
+);
 
-// Empty domain or other args can be used
-const records = await odoo.searchRead(`res.partner`, [], ['name', 'city'], {
-  limit: 10,
-  offset: 20,
-});
+// Empty domain = all records
+const all = await odoo.searchRead<Partner>('res.partner', [], ['name', 'city'], { limit: 10 });
 ```
 
-#### odoo.updateFieldTranslations(model, id, field, translations)
+## Domain Filters
 
-Updates the translations of a specific field.
-Translations needs to be an Object with keys as languages and values as translations.
+Odoo domains are arrays of triples `[field, operator, value]`. Common operators: `=`, `!=`, `<`, `>`, `<=`, `>=`, `like`, `=like`, `ilike`, `in`, `not in`, `child_of`. Logical operators: `|` (OR), `&` (AND, implicit), `!` (NOT).
 
-```js
-const result = await odoo.updateFieldTranslations(`product.template`, 1, `name`, { de_DE: 'Neuer Name', en_GB: 'New name' })
-console.log(result) // true if it was successful
-```
+Full list: [Odoo ORM Domains](https://www.odoo.com/documentation/17.0/developer/reference/backend/orm.html#search-domains).
 
-#### Complex domain filters
+```ts
+// Single triple
+await odoo.search('res.partner', [['name', '=like', 'john%']]);
 
-A domain filter array can be supplied if any of the alternate domain filters are needed, such as
-`<`, `>`, `like`, `=like`, `ilike`, `in` etc. For a complete list check out the
-[API Docs](https://www.odoo.com/documentation/14.0/reference/orm.html#reference-orm-domains).
-You can also use the logical operators OR `"|"`, AND `"&"`, NOT `"!"`.
-Works in both the `search()` and `searchRead()` functions.
-
-```js
-// Single domain filter array
-const recordIds = await odoo.search('res.partner', ['name', '=like', 'john%']);
-
-// Or a multiple domain filter array (array of arrays)
-const recordIds = await odoo.search('res.partner', [
+// Multiple triples (AND is implicit)
+await odoo.search('res.partner', [
   ['name', '=like', 'john%'],
   ['sale_order_count', '>', 1],
 ]);
 
-// Logical operator OR
-// email is "charlie@example.com" OR name includes "charlie"
-const records = await odoo.searchRead('res.partner', ['|', ['email', '=', 'charlie@example.com'], ['name', 'ilike', 'charlie']]);
+// OR: email = X OR name ilike Y
+await odoo.searchRead('res.partner', [
+  '|',
+  ['email', '=', 'charlie@example.com'],
+  ['name', 'ilike', 'charlie'],
+]);
 ```
 
-#### odoo.getFields(model, attributes)
+## Relational Fields (many2many / one2many)
 
-Returns detailed list of fields for a model, filtered by attributes. e.g., if you only want to know if fields are required you could call:
+Values are passed to Odoo **raw**. Use Odoo's native [Command tuples](https://www.odoo.com/documentation/17.0/developer/reference/backend/orm.html#odoo.fields.Command):
 
-```js
-const fields = await odoo.getFields('res.partner', ['required']);
-console.log(fields);
-```
+| Command | Meaning |
+|---|---|
+| `[0, 0, {values}]` | create a new related record and link it |
+| `[1, id, {values}]` | update existing related record |
+| `[2, id]` | unlink and **delete** from DB |
+| `[3, id]` | unlink without deleting |
+| `[4, id]` | link an existing record |
+| `[5]` | unlink all (no delete) |
+| `[6, 0, [ids]]` | replace link set with given IDs |
 
-## Working With External Identifiers
+Examples:
 
-External ID's can be important when using the native Odoo import feature with CSV files to sync data between systems, or updating
-records using your own unique identifiers instead of the Odoo database ID.
+```ts
+// Create a new related category on the fly
+await odoo.update('res.partner', 278, {
+  category_id: [[0, 0, { name: 'A new category' }]],
+});
 
-External ID's are created automatically when exporting or importing data using the Odoo
-_user interface_, but when working with the API this must be done intentionally.
+// Update an existing related category
+await odoo.update('res.partner', 278, {
+  category_id: [[1, 3, { name: 'Updated category' }]],
+});
 
-External IDs are managed separately in the `ir.model.data` model in the database - so these methods make working with
-them easier.
+// Link existing categories (ids 3, 12, 6)
+await odoo.update('res.partner', 278, {
+  category_id: [[6, 0, [3, 12, 6]]],
+});
 
-#### Module names with external ID's
+// Unlink without deleting
+await odoo.update('res.partner', 278, {
+  category_id: [[3, 5]],
+});
 
-External ID's require a module name along with the ID. If you don't supply a module name when creating an external ID
-with this library, the default module name '**api**' will be used.
-What that means is that `'some-unique-identifier'` will live in the database as
-`'__api__.some-unique-identifier'`. You do _not_ need to supply the module name when searching using externalId.
-
-#### create(model, params, externalId, moduleName)
-
-If creating a record, simply supply the external ID as the third parameter, and a module name as an optional 4th parameter.
-This example creates a record and an external ID in one method. (although it makes two separate `create` calls to the
-database under the hood).
-
-```js
-const record = await odoo.create('product.product', { name: 'new product' }, 'some-unique-identifier');
-```
-
-#### createExternalId(model, recordId, externalId)
-
-For records that are already created without an external ID, you can link an external ID to it.
-
-```js
-await odoo.createExternalId('product.product', 76, 'some-unique-identifier');
-```
-
-#### readByExternalId(externalId, fields);
-
-Find a record by the external ID, and return whatever fields you want. Leave the `fields` parameter empty to return all
-fields.
-
-```js
-const record = await odoo.readByExternalId('some-unique-identifier', ['name', 'email']);
-```
-
-#### updateByExternalId(externalId, params)
-
-```js
-const updated = await odoo.updateByExternalId('some-unique-identifier', {
-  name: 'space shoe',
-  price: 65479.99,
+// Unlink and delete from DB
+await odoo.update('res.partner', 278, {
+  category_id: [[2, 5]],
 });
 ```
 
+## Field Translations
+
+Update a translatable field across languages.
+
+```ts
+await odoo.updateFieldTranslations('product.template', 1, 'name', {
+  de_DE: 'Neuer Name',
+  en_GB: 'New name',
+});
+```
+
+## External Identifiers
+
+External IDs (stored in `ir.model.data`) let you reference records by a stable key across systems — useful for CSV imports and third-party syncs.
+
+Default module name is `__api__`, so an external ID like `'sku-42'` becomes `'__api__.sku-42'` in the DB. You can override with the `moduleName` parameter on `createExternalId`. When looking up, you do **not** need the module prefix.
+
+```ts
+// Link an external ID to an existing record
+await odoo.createExternalId('product.product', 76, 'sku-42');
+
+// Find id by external ID
+const id = await odoo.searchByExternalId('sku-42');
+
+// Read fields by external ID
+const record = await odoo.readByExternalId<{ name: string; list_price: number }>(
+  'sku-42',
+  ['name', 'list_price']
+);
+
+// Update by external ID
+await odoo.updateByExternalId('sku-42', { name: 'space shoe', list_price: 65479.99 });
+
+// Delete by external ID
+await odoo.deleteByExternalId('sku-42');
+```
+
+## Error Handling with `Try`
+
+`Try` wraps a promise and returns `[result, null] | [null, error]` — no `try/catch` boilerplate.
+
+```ts
+import OdooJSONRpc, { Try } from '@fernandoslim/odoo-jsonrpc';
+
+const [contacts, error] = await Try(() =>
+  odoo.read<{ id: number; name: string }>('res.partner', 54, ['name'])
+);
+if (error) throw error;
+if (!contacts.length) throw new Error('Contact not found');
+const [contact] = contacts;
+```
+
+Real-world example — create and confirm a Sales Order:
+
+```ts
+export const createSalesOrder = async (data: SalesOrder) => {
+  const [id, createErr] = await Try(() => odoo.create('sale.order', data));
+  if (createErr) throw createErr;
+
+  const [, confirmErr] = await Try(() => odoo.action('sale.order', 'action_confirm', [id]));
+  if (confirmErr) throw confirmErr;
+
+  return id;
+};
+```
+
+## Disconnect
+
+Ends the session on the server (credentials / session-ID modes only).
+
+```ts
+await odoo.disconnect();
+```
+
+## TypeScript
+
+All exports are fully typed. Key types:
+
+```ts
+import type {
+  OdooConnection,
+  ConnectionWithCredentials,
+  ConnectionWithSession,
+  OdooSearchDomain,
+  OdooSearchReadOptions,
+  OdooAuthenticateWithCredentialsResponse,
+  OdooAuthenticateWithApiKeyResponse,
+  UserContext,
+  UserSettings,
+} from '@fernandoslim/odoo-jsonrpc';
+```
+
+`read<T>` and `searchRead<T>` accept a generic for the row shape, so you get typed records without casting.
+
+## Benchmarks
+
+Synthetic benchmark with [Hono](https://github.com/honojs) — `hey -n 2000 -c 80`:
+
+|          | Req/sec  | Avg      |
+|----------|----------|----------|
+| JSON-RPC | 617.11   | 122 ms   |
+| XML-RPC  | 352.98   | 213 ms   |
+
+JSON-RPC handled ~75% more requests per second and ran ~43% faster on average.
+
 ## License
 
-ISC
-
-Copyright 2024 Fernando Delgado
-
-Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ISC — Copyright 2024 Fernando Delgado. See source for full text.

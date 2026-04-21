@@ -513,7 +513,7 @@ export default class OdooJSONRpc {
     return await this.delete(irModelData[0].model, irModelData[0].res_id);
   }
   //Disconnects from the Odoo server
-  async disconnect(): Promise<any> {
+  async disconnect(): Promise<boolean> {
     const endpoint = `${this.url}/web/session/destroy`;
     const params = {
       jsonrpc: '2.0',
