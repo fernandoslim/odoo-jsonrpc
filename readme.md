@@ -1,6 +1,6 @@
 # Odoo JSON-RPC
 
-Lightweight Odoo JSON-RPC client. Zero dependencies. TypeScript-first. Works on Node 18+, Bun, Deno, and Cloudflare Workers.
+Lightweight Odoo client for JSON-RPC and the new **JSON-2 API (Odoo 19+)**. Zero dependencies. TypeScript-first. Works on Node 18+, Bun, Deno, and Cloudflare Workers.
 
 Based on [OdooAwait](https://github.com/vettloffah/odoo-await) (XML-RPC). Thanks to [@vettloffah](https://github.com/vettloffah).
 
@@ -8,6 +8,8 @@ Based on [OdooAwait](https://github.com/vettloffah/odoo-await) (XML-RPC). Thanks
 - [Install](#install)
 - [Quick Start](#quick-start)
 - [Authentication](#authentication)
+- [JSON-2 (Odoo 19+)](#json-2-odoo-19)
+- [Options](#options)
 - [API Reference](#api-reference)
 - [CRUD](#crud)
 - [Search & Search Read](#search--search-read)
@@ -15,19 +17,24 @@ Based on [OdooAwait](https://github.com/vettloffah/odoo-await) (XML-RPC). Thanks
 - [Relational Fields (many2many / one2many)](#relational-fields-many2many--one2many)
 - [Field Translations](#field-translations)
 - [External Identifiers](#external-identifiers)
+- [Errors](#errors)
 - [Error Handling with `Try`](#error-handling-with-try)
 - [Disconnect](#disconnect)
 - [TypeScript](#typescript)
 - [Benchmarks](#benchmarks)
+- [Changelog](#changelog)
 - [License](#license)
 
 ## Features
 
 - Zero runtime dependencies
 - Dual ESM + CommonJS build with `.d.ts` + `.d.cts`
-- Three auth modes: credentials, API key, existing session
+- Two protocols: JSON-RPC (every Odoo version) and JSON-2 (Odoo 19+, the one that stays after Odoo 22)
+- Three auth modes on JSON-RPC: credentials, API key, existing session
 - `fetch`-based — runs anywhere `fetch` is available
-- Small surface: `create`, `read`, `update`, `delete`, `search`, `searchRead`, `action`, `call_kw`, and external-ID helpers
+- Small surface: `create`, `read`, `update`, `delete`, `search`, `searchRead`, `action`, `call`, `call_kw`, and external-ID helpers — the same code works on both protocols
+- Typed errors (`OdooError`) with HTTP status, model, method and Odoo's exception name
+- Optional request timeout
 - Go-style error helper (`Try`) to avoid try/catch noise
 
 ## Install
@@ -52,8 +59,7 @@ deno add jsr:@fernandoslim/odoo-jsonrpc
 import OdooJSONRpc from '@fernandoslim/odoo-jsonrpc';
 
 const odoo = new OdooJSONRpc({
-  baseUrl: process.env.ODOO_BASE_URL!,
-  port: Number(process.env.ODOO_PORT!),
+  baseUrl: process.env.ODOO_BASE_URL!, // e.g. https://my-odoo.example.com (port is optional)
   db: process.env.ODOO_DB!,
   username: process.env.ODOO_USERNAME!,
   password: process.env.ODOO_PASSWORD!,
@@ -177,13 +183,56 @@ app.get('/odoo/contacts/:id', async (c) => {
 });
 ```
 
+## JSON-2 (Odoo 19+)
+
+Odoo 19 introduced the External JSON-2 API (`POST /json/2/<model>/<method>`, bearer API key) and deprecated `/jsonrpc` and `/xmlrpc`, which **Odoo 22 removes**. Pass `protocol: 'json2'`; everything else stays the same.
+
+```ts
+const odoo = new OdooJSONRpc({
+  baseUrl: 'https://my-odoo.example.com',
+  db: 'my-db', // sent as X-Odoo-Database; optional on single-database servers
+  apiKey: process.env.ODOO_API_KEY!,
+  protocol: 'json2',
+});
+
+await odoo.connect(); // optional: checks the key and returns { uid }
+const partners = await odoo.searchRead('res.partner', [['is_company', '=', true]], ['name'], { limit: 10 });
+```
+
+- No login step: every request carries the key. `connect()` just validates it (`res.users.context_get`), and the first call connects on its own.
+- No username needed: the key identifies the user.
+- All helpers (`create`, `read`, `update`, `delete`, `search`, `searchRead`, `action`, `getFields`, `updateFieldTranslations`, external IDs) send the named parameters JSON-2 expects.
+- For any other method use **`call(model, method, params)`** with named parameters: `ids`, `context`, and the method's own arguments.
+
+```ts
+await odoo.call('sale.order', 'action_confirm', { ids: [42] });
+const count = await odoo.call<number>('res.partner', 'search_count', { domain: [['customer_rank', '>', 0]] });
+```
+
+- `call_kw(model, method, args, kwargs)` is positional. On JSON-2 it only works without positional arguments, or with just the ids (`[[42]]`); anything else throws and points you to `call()`.
+- `call()` also works on JSON-RPC (it becomes an `execute_kw` with the ids as the only positional argument), but parameter names follow the server: before Odoo 17, `search` takes `args`, not `domain`.
+
+API keys are created in Odoo under *Preferences → Account Security → New API Key*. For non-administrators, Odoo limits how long a key lasts.
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `baseUrl` | — | Server URL, e.g. `https://my-odoo.example.com` |
+| `port` | — | Optional: appended to `baseUrl` when given |
+| `db` | — | Database. Required on JSON-RPC; optional on JSON-2 |
+| `protocol` | `'jsonrpc'` | `'jsonrpc'` or `'json2'` |
+| `timeoutMs` | none | Aborts any request that takes longer; it throws an `OdooError` |
+| `username` + `password` / `apiKey` / `sessionId` | — | Credentials (JSON-2 only uses `apiKey`) |
+
 ## API Reference
 
 | Method | Signature | Returns |
 |---|---|---|
 | `connect` | `connect(config?)` | auth response |
 | `disconnect` | `disconnect()` | `boolean` |
-| `call_kw` | `call_kw(model, method, args, kwargs?)` | `any` |
+| `call` | `call(model, method, params?)` | `any` (named parameters) |
+| `call_kw` | `call_kw(model, method, args, kwargs?)` | `any` (positional) |
 | `create` | `create(model, values)` | `number` (id) |
 | `read<T>` | `read(model, id \| ids, fields)` | `T[]` |
 | `update` | `update(model, id, values)` | `boolean` |
@@ -199,7 +248,7 @@ app.get('/odoo/contacts/:id', async (c) => {
 | `updateByExternalId` | `updateByExternalId(externalId, params)` | `boolean` |
 | `deleteByExternalId` | `deleteByExternalId(externalId)` | `boolean` |
 
-If a method you need is not wrapped, use `call_kw` directly. See [Odoo External API](https://www.odoo.com/documentation/17.0/developer/reference/external_api.html).
+If a method you need is not wrapped, use `call` (named parameters) or `call_kw` (positional). See [Odoo External API](https://www.odoo.com/documentation/19.0/developer/reference/external_api.html). On Odoo 19+, `/doc` on your server documents every model and method.
 
 ## CRUD
 
@@ -371,6 +420,28 @@ await odoo.updateByExternalId('sku-42', { name: 'space shoe', list_price: 65479.
 await odoo.deleteByExternalId('sku-42');
 ```
 
+## Errors
+
+Every failure throws an `OdooError` (it extends `Error`): network errors, timeouts, HTTP errors, responses that are not JSON (a proxy's HTML page), a rejected login and errors raised by Odoo.
+
+```ts
+import { OdooError } from '@fernandoslim/odoo-jsonrpc';
+
+try {
+  await odoo.action('sale.order', 'action_confirm', [42]);
+} catch (error) {
+  if (error instanceof OdooError) {
+    error.message; // Odoo's message, e.g. "You cannot confirm an order without lines"
+    error.status; // HTTP status (JSON-2 uses real ones: 401, 403, 404, 422…)
+    error.exceptionName; // e.g. 'odoo.exceptions.UserError'
+    error.model; // 'sale.order'
+    error.method; // 'action_confirm'
+  }
+}
+```
+
+A login that Odoo rejects throws on `connect()` (status 401), on both protocols.
+
 ## Error Handling with `Try`
 
 `Try` wraps a promise and returns `[result, null] | [null, error]` — no `try/catch` boilerplate.
@@ -402,7 +473,7 @@ export const createSalesOrder = async (data: SalesOrder) => {
 
 ## Disconnect
 
-Ends the session on the server (credentials / session-ID modes only).
+Ends the session on the server (credentials / session-ID modes). With an API key there is no server session: it only clears the local state.
 
 ```ts
 await odoo.disconnect();
@@ -415,6 +486,8 @@ All exports are fully typed. Key types:
 ```ts
 import type {
   OdooConnection,
+  OdooProtocol,
+  OdooCallParams,
   ConnectionWithCredentials,
   ConnectionWithSession,
   OdooSearchDomain,
@@ -438,6 +511,22 @@ Synthetic benchmark with [Hono](https://github.com/honojs) — `hey -n 2000 -c 8
 | XML-RPC  | 352.98   | 213 ms   |
 
 JSON-RPC handled ~75% more requests per second and ran ~43% faster on average.
+
+## Changelog
+
+### 2.2.0
+
+- **JSON-2 (Odoo 19+)**: `protocol: 'json2'`, bearer API key, `X-Odoo-Database`. All helpers work on both protocols.
+- `call(model, method, params)` with named parameters.
+- `OdooError` with `status`, `model`, `method` and `exceptionName` for every failure.
+- `timeoutMs` option.
+- `port` is optional: `baseUrl` can be a full `https://…` URL.
+- Fix: a login rejected by Odoo threw nothing (`uid: false` counted as connected); it now throws on `connect()`.
+- Fix: errors returned by `/web/session/*` were not detected.
+- Fix: `action()` with several ids sent them as separate arguments; it now sends the list.
+- Fix: `create()` and `createExternalId()` returned a list where their type says a number (a list of values still returns a list).
+- Fix: `disconnect()` with an API key threw; it now clears the local state.
+- Tests (Vitest) against an in-memory Odoo that speaks both protocols, plus optional read-only checks against a real server (`tests/live.test.ts`).
 
 ## License
 

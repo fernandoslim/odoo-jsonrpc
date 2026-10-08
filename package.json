@@ -1,7 +1,7 @@
 {
   "name": "@fernandoslim/odoo-jsonrpc",
-  "version": "2.1.0",
-  "description": "A lightweight Odoo JSON-RPC client with zero dependencies.",
+  "version": "2.2.0",
+  "description": "A lightweight Odoo client for JSON-RPC and the JSON-2 API (Odoo 19+), with zero dependencies.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -31,18 +31,22 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/fernandoslim/odoo-jsonrpc.git"
   },
   "keywords": [
-    "odoo",
+    "client",
+    "external-api",
+    "json-2",
+    "json2",
     "jsonrpc",
-    "typescript",
+    "odoo",
     "rpc",
-    "client"
+    "typescript"
   ],
   "author": "Fernando Slim <xferchox@gmail.com>",
   "license": "ISC",
@@ -52,6 +56,7 @@
   "homepage": "https://github.com/fernandoslim/odoo-jsonrpc#readme",
   "devDependencies": {
     "tsup": "^8.3.5",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^5.0.3"
   }
 }
